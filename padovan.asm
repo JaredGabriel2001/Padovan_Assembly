@@ -33,7 +33,7 @@ _start:
     mov edx, msgInserirL     
     syscall
 
-    xor r8d, r8d
+    mov r8d, 0
 leitura:
     mov rax, 0                       ;leitura
     mov rdi, 0
