@@ -16,14 +16,12 @@ section .data
     nomeArquivo1l : equ $ - nomeArquivo1  
     nomeArquivo2  : db ").bin", 0
     nomeArquivo2l : equ $ - nomeArquivo2
-    resultado dd 0           ; Reserva 1 byte para armazenar o resultado
 
 section .bss 
     num: resb maxSize               ; num - onde é armazenada a entrada do usuário
     resposta: resb maxSizePad       ; resposta - onde é armazenado o resultado de fib(n), se n for válido
     descritor_arquivo: resd 1       ; armazena o descritor do arquivo criado
     nomeArquivo: resb maxChars      ; nomeArquivo - armazena o nome do arquivo criado
-    
 
 section .text
     global _start
@@ -35,38 +33,42 @@ _start:
     mov rdx, msgInserirL     
     syscall
 
-    mov r9d, 0
+    mov r8d, 0
 leitura:
     mov rax, 0                       ; leitura
     mov rdi, 0                       ; stdin
-    lea rsi, [num + r9d]
-    mov rdx, 4                       ; leitura byte a byte
+    lea rsi, [num + r8d]
+    mov rdx, 1                       ; leitura byte a byte
     syscall
 
-    cmp byte [num + 1], 10         ; caso o segundo caracter for um ENTER
-    je validar_entrada1
+    cmp byte [num + r8d], 10         ; caso caracter lido seja quebra de linha, avança para a parte de verificação
+    je validar_entrada
+    
+    sub byte [num + r8d], 0x30       ; senão, converte ASCII > decimal, incrementa r8d e lê próximo byte
+    inc r8d
+    jmp leitura
 
-    cmp byte [num + 2], 10        ; caso o terceiro caracter for um ENTER
-    je validar_entrada2
+validar_entrada:
+    inc r8d                          ; r8d = num_digitos(num) + 1 
+    cmp r8d, maxSize                 ; if (num_digitos(num) >= 3) mensagem de erro e encerramento;
+    jge entrada_invalida
+    cmp r8d, 2                       ; caso número seja de 2 digitos, parte direto para a conversão
+    jg converte_int
+    mov r9b, [num]                   ; senão, se num < 10, num ficará na forma 0n, tal que n é o valor de num
+    mov byte [num+1], r9b
+    mov byte [num], 0
 
-    jmp entrada_invalida                      ; Se não for nenhum dos dois é erro
+converte_int:
+    mov al, 10
+    imul byte [num]
+    add al, [num+1]
+    movzx r12d, al                   ; usar movzx para mover byte para registrador de 32 bits
+    
+    cmp r12d, 0                      ; r12d terá armazenado num na forma decimal
+    je entrada_invalida              ; caso r12d = 0, mensagem de erro e encerramento
 
-validar_entrada1:
-    mov al, byte [num]
-    sub al, '0'
-    mov [resultado], rax       ; Armazena o resultado final
-    jmp nomear_arquivo
-
-validar_entrada2:
-    mov al, byte [num]        ; Carrega o primeiro byte (dígito) em AL
-    sub al, '0'               ; Converte de ASCII para valor numérico (0-9)
-    mov bl, 10                ; Carrega o valor 10 em BL
-    mul bl                    ; Multiplica AL por BL.
-    mov bl, byte [num+1]      ; Carrega o segundo dígito ASCII em BL
-    sub bl, '0'               ; Converte de ASCII para valor numérico (0-9)
-    add al, bl                ; Soma o segundo dígito ao resultado
-    mov [resultado], rax       ; Armazena o resultado final
-    jmp nomear_arquivo         ; Salta para a rotina de nomear arquivo
+    ; cmp r12d, 93                     ; se r12d > 93, mensagem de erro e encerramento
+    ; jg entrada_invalida
 
 nomear_arquivo:
     xor r9d, r9d
@@ -80,15 +82,13 @@ inserir_primeira_parte:
     inc r10d
     inc r9d
     jmp inserir_primeira_parte
-
 insereNum:
-    mov r9b, byte al
+    mov r9b, [num]
     add r9b, 0x30                   ; converte para ASCII
     cmp r9b, 0x30
     je insereNum2
     mov [nomeArquivo + r10d], r9b
     inc r10d
-
 insereNum2:
     mov r9b, [num + 1]
     add r9b, 0x30                   ; converte para ASCII
@@ -115,35 +115,26 @@ calc_padovan:
 
     mov [descritor_arquivo], eax    ; armazena o fd do arquivo em fileHandle
 
-    mov rsi, [resultado]                   ; usar o registrador de 32 bits para contador
-    
-    ; Verificar se n é menor que 3
-    cmp ecx, 3
-    jl finalizar_padovan                 ; Para n < 3
-    ; FAZER ALGUM TRATAMENTO PARA A SAIDA SER 1 caso isso seja verdadeiro
-
-    mov r10, 1                      ; P(n-3)
-    mov r11, 1                      ; P(n-2)
-    mov r12, 1                      ; P(n-1)
+    mov rbx, 1                      ; P(n-3)
+    mov rcx, 1                      ; P(n-2)
+    mov rdx, 1                      ; P(n-1)
+    mov esi, r12d                   ; usar o registrador de 32 bits para contador
 
 repete_padovan:
-    sub rsi, 1
-
-    ; Calcular P(n) = P(n-2) + P(n-3)
-    mov rax, r11                    ; P(n-2)
-    add rax, r10                    ; P(n) = P(n-2) + P(n-3)
-
-    ; Atualizar os registradores para a próxima iteração
-    mov r10, r11                    ; P(n-3) = P(n-2)
-    mov r11, r12                    ; P(n-2) = P(n-1)
-    mov r12, rax                    ; P(n-1) = P(n)
-    cmp rsi, 2
+    sub esi, 1
+    mov rax, rbx                    ; salva P(n-3) em rax
+    add rbx, rcx                    ; P(n-3) + P(n-2)
+    mov rcx, rdx                    ; P(n-2) vira P(n-1)
+    mov rdx, rax                    ; P(n-3) vira P(n-2)
+    cmp esi, 2
     jg repete_padovan
-
+padovan_base:
+    mov rbx, 1                      ; Padovan(0) = Padovan(1) = Padovan(2) = 1
+    jmp finalizar_padovan
 
 finalizar_padovan:
     ; Aqui faremos a escrita da resposta antes de retornar
-    mov [resposta], rax
+    mov [resposta], rbx
 
     mov rax, 1                      ; write com fd sendo o arquivo
     mov edi, [descritor_arquivo]    ; fd
@@ -155,8 +146,12 @@ finalizar_padovan:
     mov edi, [descritor_arquivo]
     syscall
 
-    jmp fim
+    ; Ajustar ret para encerrar corretamente
+    mov rax, 60
+    mov rdi, 0
+    syscall
 
+    jmp fim
 entrada_invalida:
     mov rax, 1                      ; codigo write
     mov rdi, 1                      ; write on terminal
