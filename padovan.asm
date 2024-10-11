@@ -18,11 +18,14 @@ section .data
     nomeArquivo2l : equ $ - nomeArquivo2
 
 section .bss 
-    num: resb maxSize               ; num - onde é armazenada a entrada do usuário
-    resposta: resb maxSizePad       ; resposta - onde é armazenado o resultado de fib(n), se n for válido
-    descritor_arquivo: resd 1       ; armazena o descritor do arquivo criado
-    nomeArquivo: resb maxChars      ; nomeArquivo - armazena o nome do arquivo criado
-
+    num               : resb maxSize               ; num - onde é armazenada a entrada do usuário
+    resposta          : resb maxSizePad       ; resposta - onde é armazenado o resultado de fib(n), se n for válido
+    descritor_arquivo : resd 1       ; armazena o descritor do arquivo criado
+    nomeArquivo       : resb maxChars      ; nomeArquivo - armazena o nome do arquivo criado
+    p_n3: resb 4   ; Reservar espaço para P(n-3)
+    p_n2: resb 4   ; Reservar espaço para P(n-2)
+    p_n1: resb 4   ; Reservar espaço para P(n-1)
+    p_n: resb 4    ; Reservar espaço para P(n)
 section .text
     global _start
 
@@ -64,8 +67,8 @@ converte_int:
     add al, [num+1]
     movzx r12d, al                   ; usar movzx para mover byte para registrador de 32 bits
     
-    cmp r12d, 0                      ; r12d terá armazenado num na forma decimal
-    je entrada_invalida              ; caso r12d = 0, mensagem de erro e encerramento
+    ;cmp r12d, 0                      ; r12d terá armazenado num na forma decimal
+    ;je entrada_invalida              ; caso r12d = 0, mensagem de erro e encerramento
 
     ; cmp r12d, 93                     ; se r12d > 93, mensagem de erro e encerramento
     ; jg entrada_invalida
@@ -115,25 +118,34 @@ calc_padovan:
 
     mov [descritor_arquivo], eax    ; armazena o fd do arquivo em fileHandle
 
-    mov rbx, 1                      ; P(n-3)
-    mov rcx, 1                      ; P(n-2)
-    mov rdx, 1                      ; P(n-1)
-    mov esi, r12d                   ; usar o registrador de 32 bits para contador
+    ; Verificar se n == 0 || n == 1 || n == 2
+    cmp byte r12b, 2
+    jle padovan_base
 
+    mov rcx, 1
+    mov rdx, 1
+    mov rsi, 1
+    mov rbx, 0
+
+    mov r8b, 3 
 repete_padovan:
-    sub esi, 1
-    mov rax, rbx                    ; salva P(n-3) em rax
-    add rbx, rcx                    ; P(n-3) + P(n-2)
-    mov rcx, rdx                    ; P(n-2) vira P(n-1)
-    mov rdx, rax                    ; P(n-3) vira P(n-2)
-    cmp esi, 2
-    jg repete_padovan
-padovan_base:
-    mov rbx, 1                      ; Padovan(0) = Padovan(1) = Padovan(2) = 1
-    jmp finalizar_padovan
+    cmp r8b, r12b        ; compara i com n
+    jg escrever_arquivo         ; se i > n, sai do loop
 
-finalizar_padovan:
-    ; Aqui faremos a escrita da resposta antes de retornar
+    mov rbx, rdx        ; rbx (p_n) = p_n2
+    add rbx, rcx        ; p_n = p_n2 + p_n3
+
+    mov rcx, rdx        ; p_n3 = p_n2
+    mov rdx, rsi        ; p_n2 = p_n1
+    mov rsi, rbx        ; p_n1 = p_n
+
+    inc r8d             ; i++
+    jmp repete_padovan      ; volta para o início do loop
+    padovan_base:
+        mov rbx, 1
+
+escrever_arquivo:
+    ;Escrita da resposta para ser inserida no arquivo
     mov [resposta], rbx
 
     mov rax, 1                      ; write com fd sendo o arquivo
@@ -146,11 +158,6 @@ finalizar_padovan:
     mov edi, [descritor_arquivo]
     syscall
 
-    ; Ajustar ret para encerrar corretamente
-    mov rax, 60
-    mov rdi, 0
-    syscall
-
     jmp fim
 entrada_invalida:
     mov rax, 1                      ; codigo write
@@ -159,6 +166,8 @@ entrada_invalida:
     mov rdx, msgErroL               ; apenas os chars necessarios
     syscall
 
+
+    
 fim:
     mov rax, 60
     mov rdi, 0
