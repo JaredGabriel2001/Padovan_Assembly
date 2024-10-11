@@ -1,6 +1,7 @@
 ;Gabriel Jared e Pedro Pisseti
 ;nasm -f elf64 [LMpratica01]GabrielJared_PedroPisseti.asm && ld [LMpratica01]GabrielJared_PedroPisseti.o -o [LMpratica01]GabrielJared_PedroPisseti.x
 ;Executar: ./[LMpratica01]GabrielJared_PedroPisseti.x
+;para verificar o resultado, o valor da n sequencia está sendo salvo em rbx
 
 %define maxSize 4
 %define maxSizePad 21
@@ -46,7 +47,7 @@ leitura:
     syscall
 
     cmp byte [num + r8d], 10         ; caso caracter lido seja quebra de linha, avança para a parte de verificação
-    je validar_entrada
+    je verificar_apenas_enter
     
     ; Verifica se o caractere é numérico (entre '0' e '9')
     cmp byte [num + r8d], '0'        ; compara com '0'
@@ -59,7 +60,9 @@ leitura:
 
     inc r8d                          ; incrementa o índice de leitura
     jmp leitura                      ; volta para continuar lendo
-
+verificar_apenas_enter:
+    cmp r8d, 0                       ; Verifica se nenhum caractere foi lido antes do \n
+    je entrada_invalida
 validar_entrada:
     inc r8d                          ; r8d = num_digitos(num) + 1 
     cmp r8d, maxSize                 ; if (num_digitos(num) >= 3) mensagem de erro e encerramento;
@@ -163,12 +166,13 @@ escrever_arquivo:
 
     jmp fim
 entrada_invalida:
-    mov rax, 1                      ; codigo write
-    mov rdi, 1                      ; write on terminal
-    lea rsi, [msgErro]              ; a mensagem de entrada
-    mov rdx, msgErroL               ; apenas os chars necessarios
+    ; Escrever a mensagem de erro
+    mov rax, 1                      ; Syscall write - Erro
+    mov rdi, 1              
+    lea rsi, [msgErro]    
+    mov rdx, msgErroL     
     syscall
-    
+  
 fim:
     mov rax, 60
     mov rdi, 0
